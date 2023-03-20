@@ -30,24 +30,24 @@ ember install @html-next/vertical-collection
 ## Usage
 
 ```htmlbars
-{{#vertical-collection
-    items
-    tagName='ul'
-    estimateHeight=50
-    staticHeight=false
-    bufferSize=1
-    renderAll=false
-    renderFromLast=false
-    idForFirstItem=idForFirstItem
-    firstReached=(action firstReached)
-    lastReached=(action lastReached)
-    firstVisibleChanged=(action firstVisibleChanged)
-    lastVisibleChanged=(action lastVisibleChanged)
-     as |item i|}}
+<VerticalCollection
+    @items={{items}}
+    @tagName="ul"
+    @estimateHeight={{50}}
+    @staticHeight={{false}}
+    @bufferSize={{1}}
+    @renderAll={{false}}
+    @renderFromLast={{false}}
+    @idForFirstItem={{idForFirstItem}}
+    @firstReached={{firstReachedCallback}}
+    @lastReached={{lastReachedCallback}}
+    @firstVisibleChanged={{firstVisibleChangedCallback}}
+    @lastVisibleChanged={{lastVisibleChangedCallback}}
+     as |item i|>
     <li>
       {{item.number}} {{i}}
     </li>
-{{/vertical-collection}}
+</VerticalCollection>
 ```
 
 ### Actions
@@ -62,10 +62,12 @@ ember install @html-next/vertical-collection
 
 ## Support Matrix
 
-| `vertical-collection` version | Supported Ember versions |
-| ----------------------------- | ------------------------ |
-| `^v1.0.0`                     | `v1.12.0 - v3.8.0`       |
-| `^v2.0.0`                     | `v3.8.0+`                |
+| `vertical-collection` version | Supported Ember versions | Supported Node versions |
+| ----------------------------- | ------------------------ | ----------------------- |
+| `^v1.x.x`                     | `v1.12.0 - v3.8.x`       | `?`                     |
+| `^v2.x.x`                     | `v2.8.0 - v3.26.x`       | `v12 - ?`               |
+| `^v3.x.x`                     | `v2.18.0+`               | `v14+`                  |
+| `^v4.x.x`                     | `v3.12.0+`               | `v14+`                  |
 
 ## Support, Questions, Collaboration
 
@@ -86,7 +88,7 @@ It works via a scrollable div or scrollable body.
 
 ### Svelte Everything
 
-If it can be trimmer, smoke-and-mirrors likes to trim it.
+If it can be trimmer, vertical-collection likes to trim it.
 
 ## Status
 

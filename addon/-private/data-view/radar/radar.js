@@ -1,6 +1,7 @@
 import { A } from '@ember/array';
 import { set, get } from '@ember/object';
 import { assert } from '@ember/debug';
+import { run } from '@ember/runloop';
 import { DEBUG } from '@glimmer/env';
 
 import { Token, scheduler } from 'ember-raf-scheduler';
@@ -105,6 +106,7 @@ export default class Radar {
 
     this._componentPool = [];
     this._prependComponentPool = [];
+    this._appendComponentPool = []; // https://github.com/html-next/vertical-collection/issues/296
 
     // Boundaries
     this._occludedContentBefore = new OccludedContent(occlusionTagName);
@@ -223,7 +225,7 @@ export default class Radar {
    *
    * @private
    */
-  scheduleUpdate(didUpdateItems) {
+  scheduleUpdate(didUpdateItems, promiseResolve) {
     if (didUpdateItems === true) {
       // Set the update items flag first, in case scheduleUpdate has already been called
       // but the RAF hasn't yet run
@@ -238,11 +240,11 @@ export default class Radar {
       this._nextUpdate = null;
       this._scrollTop = this._scrollContainer.scrollTop;
 
-      this.update();
+      this.update(promiseResolve);
     });
   }
 
-  update() {
+  update(promiseResolve) {
     if (this._didUpdateItems === true) {
       this._determineUpdateType();
       this._didUpdateItems = false;
@@ -252,7 +254,12 @@ export default class Radar {
     this._updateIndexes();
     this._updateVirtualComponents();
 
-    this.schedule('measure', this.afterUpdate.bind(this));
+    this.schedule('measure', () => {
+      if (promiseResolve) {
+        promiseResolve();
+      }
+      this.afterUpdate();
+    });
   }
 
   afterUpdate() {
@@ -524,11 +531,22 @@ export default class Radar {
     if (_componentPool.length > 0) {
       if (shouldRecycle === true) {
         // Grab the DOM of the remaining components and move it to temporary node disconnected from
-        // the body. If we end up using these components again, we'll grab their DOM and put it back
-        for (let i = 0; i < _componentPool.length; i++) {
+        // the body if the item can be reused later otherwise delete the component to avoid virtual re-rendering of the
+        // deleted item. If we end up using these components again, we'll grab their DOM and put it back
+        for (let i = _componentPool.length - 1; i >= 0; i--) {
           const component = _componentPool[i];
-
-          insertRangeBefore(this._domPool, null, component.realUpperBound, component.realLowerBound);
+          const item = objectAt(items, component.index);
+          if (item) {
+            insertRangeBefore(this._domPool, null, component.realUpperBound, component.realLowerBound);
+          } else {
+            // Insert the virtual component bound back to make sure Glimmer is
+            // not confused about the state of the DOM.
+            insertRangeBefore(this._itemContainer, null, component.realUpperBound, component.realLowerBound);
+            run(() => {
+              virtualComponents.removeObject(component);
+            });
+            _componentPool.splice(i, 1);
+          }
         }
       } else {
         virtualComponents.removeObjects(_componentPool);
@@ -554,6 +572,8 @@ export default class Radar {
     const {
       virtualComponents,
       _occludedContentAfter,
+      _appendComponentPool,
+      shouldRecycle,
       _itemContainer
     } = this;
 
@@ -562,8 +582,31 @@ export default class Radar {
     if (component.rendered === true) {
       insertRangeBefore(_itemContainer, relativeNode, component.realUpperBound, component.realLowerBound);
     } else {
-      virtualComponents.insertAt(virtualComponents.get('length') - 1, component);
+      virtualComponents.insertAt(virtualComponents.length - 1, component);
       component.rendered = true;
+
+      // shouldRecycle=false breaks UI when scrolling the elements fast. 
+      // Reference https://github.com/html-next/vertical-collection/issues/296
+      // Components that are both new and appended still need to be rendered at the end because Glimmer.
+      // We have to move them _after_ they render, so we schedule that if they exist
+      if(!shouldRecycle) {
+        _appendComponentPool.unshift(component);
+
+        if (this._nextLayout === null) {
+          this._nextLayout = this.schedule('layout', () => {
+            this._nextLayout = null;
+
+            while (_appendComponentPool.length > 0) {
+              const component = _appendComponentPool.pop();
+
+              // Changes with each inserted component
+              const relativeNode = _occludedContentAfter.realUpperBound;
+
+              insertRangeBefore(this._itemContainer, relativeNode, component.realUpperBound, component.realLowerBound);
+            }
+          });
+        }
+      }
     }
   }
 
@@ -580,7 +623,7 @@ export default class Radar {
     if (component.rendered === true) {
       insertRangeBefore(_itemContainer, relativeNode, component.realUpperBound, component.realLowerBound);
     } else {
-      virtualComponents.insertAt(virtualComponents.get('length') - 1, component);
+      virtualComponents.insertAt(virtualComponents.length - 1, component);
       component.rendered = true;
 
       // Components that are both new and prepended still need to be rendered at the end because Glimmer.

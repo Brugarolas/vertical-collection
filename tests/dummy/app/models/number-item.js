@@ -8,7 +8,7 @@ const {
 
 export default Model.extend({
   number: attr('number'),
-  prefixed: computed(function() {
-    return `${this.get('number')}`;
+  prefixed: computed('number', function() {
+    return `${this.number}`;
   })
 });
